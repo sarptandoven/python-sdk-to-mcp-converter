@@ -8,7 +8,6 @@ from reflection import discover_methods
 from schema_gen import signature_to_schema
 from mcp_protocol import handle_tools_list, handle_tools_call
 from executor import Executor
-from validation import validate_tool_name, validate_arguments, ValidationError
 from config import Config
 
 
@@ -119,61 +118,21 @@ def test_executor_basic():
     config.max_retries = 1
     config.timeout_seconds = 5
     
-    executor = Executor(config, cache=None, rate_limiter=None)
+    executor = Executor(config)
     
     def simple_add(a: int, b: int):
         return a + b
     
-    result = executor.execute("test.add", simple_add, {"a": 3, "b": 7}, use_cache=False)
+    result = executor.execute(simple_add, {"a": 3, "b": 7})
     
-    assert result["success"] == True
-    assert result["result"] == 10
-    assert "duration_ms" in result
+    assert result == 10
     
     print("[OK] test 5 passed: executor basic functionality works")
     return True
 
 
-def test_validation():
-    """test 6: test input validation."""
-    assert validate_tool_name("os.getcwd") == True
-    assert validate_tool_name("my_module.MyClass.method") == True
-    
-    try:
-        validate_tool_name("")
-        assert False, "should raise error for empty name"
-    except ValidationError:
-        pass
-    
-    try:
-        validate_tool_name("invalid-name!")
-        assert False, "should raise error for invalid chars"
-    except ValidationError:
-        pass
-    
-    schema = {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string"},
-            "age": {"type": "integer"}
-        },
-        "required": ["name"]
-    }
-    
-    assert validate_arguments({"name": "test", "age": 25}, schema) == True
-    
-    try:
-        validate_arguments({"age": 25}, schema)
-        assert False, "should raise error for missing required field"
-    except ValidationError:
-        pass
-    
-    print("[OK] test 6 passed: validation works correctly")
-    return True
-
-
 def test_complex_sdk_discovery():
-    """test 7: test discovery with json module (more complex)."""
+    """test 6: test discovery with json module (more complex)."""
     import json as json_module
     
     methods = discover_methods(json_module, "json", allow_dangerous=False)
@@ -185,12 +144,12 @@ def test_complex_sdk_discovery():
     for method in methods:
         assert method["signature"] is not None, "all methods should have signatures"
     
-    print(f"[OK] test 7 passed: discovered {len(methods)} methods from json module")
+    print(f"[OK] test 6 passed: discovered {len(methods)} methods from json module")
     return True
 
 
 def test_dangerous_method_filtering():
-    """test 8: test dangerous method filtering."""
+    """test 7: test dangerous method filtering."""
     from safety import is_dangerous
     
     assert is_dangerous("os.remove") == True
@@ -202,12 +161,12 @@ def test_dangerous_method_filtering():
     assert is_dangerous("os.listdir") == False
     assert is_dangerous("api.get_user") == False
     
-    print("[OK] test 8 passed: dangerous method filtering works")
+    print("[OK] test 7 passed: dangerous method filtering works")
     return True
 
 
 def test_end_to_end_simple_sdk():
-    """test 9: end-to-end test with pathlib."""
+    """test 8: end-to-end test with pathlib."""
     from pathlib import Path
     import pathlib
     
@@ -223,17 +182,17 @@ def test_end_to_end_simple_sdk():
         assert schema["type"] == "object"
         assert "properties" in schema
     
-    print(f"[OK] test 9 passed: end-to-end pathlib discovery and schema generation")
+    print(f"[OK] test 8 passed: end-to-end pathlib discovery and schema generation")
     return True
 
 
 def test_executor_with_retry():
-    """test 10: test executor retry logic."""
+    """test 9: test executor retry logic."""
     config = Config()
     config.max_retries = 3
     config.timeout_seconds = 5
     
-    executor = Executor(config, cache=None, rate_limiter=None)
+    executor = Executor(config)
     
     call_count = [0]
     
@@ -243,13 +202,12 @@ def test_executor_with_retry():
             raise Exception("timeout error")
         return "success"
     
-    result = executor.execute("test.flaky", flaky_function, {}, use_cache=False)
+    result = executor.execute(flaky_function, {})
     
-    assert result["success"] == True
-    assert result["result"] == "success"
+    assert result == "success"
     assert call_count[0] == 2, "should retry once"
     
-    print("[OK] test 10 passed: executor retry logic works")
+    print("[OK] test 9 passed: executor retry logic works")
     return True
 
 
@@ -261,7 +219,6 @@ def run_all_tests():
         test_mcp_protocol_tools_list,
         test_mcp_protocol_tools_call,
         test_executor_basic,
-        test_validation,
         test_complex_sdk_discovery,
         test_dangerous_method_filtering,
         test_end_to_end_simple_sdk,
