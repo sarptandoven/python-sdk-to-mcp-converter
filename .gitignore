@@ -1,14 +1,23 @@
+# python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+*.py[cod]
 *.so
 *.egg
 *.egg-info/
 dist/
 build/
-.venv/
-venv/
-.env
 
+# credentials and secrets
+.env
+*.pem
+*.key
+
+# ide
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# os
+.DS_Store
+Thumbs.db
