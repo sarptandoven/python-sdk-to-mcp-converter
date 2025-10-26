@@ -11,12 +11,20 @@ class Config:
         self.allow_dangerous = self._get_bool("ALLOW_DANGEROUS", False)
         self.redact_secrets = self._get_bool("REDACT_SECRETS", True)
         
+        # filtering settings
+        self.tool_allowlist = self._load_patterns("TOOL_ALLOWLIST")
+        self.tool_denylist = self._load_patterns("TOOL_DENYLIST")
+        
+        # safety settings
+        self.dry_run = self._get_bool("DRY_RUN", False)
+        
         # execution settings
         self.max_retries = int(os.getenv("MAX_RETRIES", "3"))
         self.timeout_seconds = int(os.getenv("TIMEOUT", "30"))
         
         # pagination settings
         self.max_pagination_items = int(os.getenv("MAX_ITEMS", "100"))
+        self.collect_all_pages = self._get_bool("COLLECT_ALL_PAGES", False)
         
         # llm settings
         self.use_llm = self._get_bool("USE_LLM", False)
@@ -38,6 +46,13 @@ class Config:
         """load sdk list from env."""
         sdk_str = os.getenv("SDKS", "os")
         return [s.strip() for s in sdk_str.split(",") if s.strip()]
+    
+    def _load_patterns(self, key):
+        """load comma-separated patterns from env."""
+        pattern_str = os.getenv(key, "")
+        if not pattern_str:
+            return []
+        return [p.strip() for p in pattern_str.split(",") if p.strip()]
     
     def _get_bool(self, key, default):
         """get boolean from env."""

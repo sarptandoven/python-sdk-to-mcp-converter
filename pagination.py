@@ -71,6 +71,76 @@ def handle_paginated_call(func, kwargs, pagination_info, max_items=100):
 
 def collect_all_pages(func, kwargs, pagination_info, max_items=100):
     """collect results from all pages."""
-    # todo: implement proper multi-page collection
-    # for now, just return single page
-    return handle_paginated_call(func, kwargs, pagination_info, max_items)
+    cursor_param = pagination_info.get("cursor_param")
+    limit_param = pagination_info.get("limit_param")
+    
+    if not pagination_info.get("has_pagination"):
+        return func(**kwargs)
+    
+    all_items = []
+    page_count = 0
+    max_pages = 10  # safety limit
+    
+    # set reasonable page size
+    if limit_param and limit_param not in kwargs:
+        kwargs[limit_param] = min(50, max_items)
+    
+    while len(all_items) < max_items and page_count < max_pages:
+        try:
+            result = func(**kwargs)
+            page_count += 1
+            
+            # extract items from result
+            items = _extract_items(result)
+            if not items:
+                break
+            
+            all_items.extend(items)
+            
+            # check for next page cursor
+            next_cursor = _extract_next_cursor(result)
+            if not next_cursor or not cursor_param:
+                break
+            
+            # update cursor for next page
+            kwargs[cursor_param] = next_cursor
+            
+        except Exception as e:
+            # if pagination fails, return what we have
+            break
+    
+    return {
+        "items": all_items[:max_items],
+        "count": len(all_items[:max_items]),
+        "pages_collected": page_count,
+        "truncated": len(all_items) > max_items
+    }
+
+
+def _extract_items(result):
+    """extract items from various result formats."""
+    if hasattr(result, "items"):
+        items = result.items
+        if callable(items):
+            items = items()
+        return list(items) if items else []
+    elif hasattr(result, "data"):
+        return list(result.data) if result.data else []
+    elif isinstance(result, list):
+        return result
+    elif isinstance(result, dict) and "items" in result:
+        return result["items"]
+    return []
+
+
+def _extract_next_cursor(result):
+    """extract next page cursor from result."""
+    if hasattr(result, "next_page_token"):
+        return result.next_page_token
+    elif hasattr(result, "next_cursor"):
+        return result.next_cursor
+    elif hasattr(result, "next"):
+        return result.next
+    elif isinstance(result, dict):
+        return result.get("next_page_token") or result.get("next_cursor") or result.get("next")
+    return None

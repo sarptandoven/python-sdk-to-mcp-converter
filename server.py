@@ -8,12 +8,14 @@ from schema_gen import signature_to_schema
 from auth import AuthManager
 from safety import redact_secrets
 from executor import Executor
-from pagination import detect_pagination, handle_paginated_call
+from pagination import detect_pagination, handle_paginated_call, collect_all_pages
 from cache import SimpleCache
 from rate_limit import RateLimiter, RateLimitExceeded
 from logger import get_logger
 from metrics import get_metrics
 from validation import validate_tool_name, validate_arguments, validate_json_rpc_request, ValidationError
+from filters import ToolFilter
+from dry_run import DryRunInterceptor
 
 
 class MCPServer:
@@ -27,6 +29,17 @@ class MCPServer:
         self.tools = []
         self.tool_registry = {}
         self.auth_manager = AuthManager()
+        
+        # initialize filtering
+        self.tool_filter = ToolFilter(
+            allowlist=config.tool_allowlist,
+            denylist=config.tool_denylist
+        )
+        
+        # initialize dry-run
+        self.dry_run_interceptor = DryRunInterceptor(enabled=config.dry_run)
+        if config.dry_run:
+            self.logger.info("dry-run mode enabled")
         
         # initialize caching if enabled
         self.cache = None
@@ -59,6 +72,10 @@ class MCPServer:
                 )
                 
                 for method in methods:
+                    # check if tool should be included based on filters
+                    if not self.tool_filter.should_include(method["name"]):
+                        continue
+                    
                     # check auth
                     has_auth = self.auth_manager.check_auth(module_name)
                     
@@ -88,7 +105,8 @@ class MCPServer:
                     self.tools.append(tool)
                     self.tool_registry[method["name"]] = {
                         "callable": method["callable"],
-                        "pagination": pagination_info
+                        "pagination": pagination_info,
+                        "is_dangerous": method.get("is_dangerous", False)
                     }
                 
                 self.logger.info(f"loaded sdk", name=module_name, methods=len(methods))
@@ -109,21 +127,42 @@ class MCPServer:
         tool_info = self.tool_registry[tool_name]
         callable_obj = tool_info["callable"]
         pagination_info = tool_info["pagination"]
+        is_dangerous = tool_info.get("is_dangerous", False)
+        
+        # check for dry-run interception
+        if self.dry_run_interceptor.should_intercept(tool_name, is_dangerous):
+            result = self.dry_run_interceptor.intercept(tool_name, callable_obj, arguments)
+            return {
+                "result": result,
+                "cached": False,
+                "duration_ms": 0,
+                "dry_run": True
+            }
         
         # inject auth
         sdk_name = tool_name.split(".")[0]
         arguments = self.auth_manager.inject_auth(sdk_name, arguments)
         
         # execute
+        start_time = time.time()
         if pagination_info["has_pagination"]:
-            # pagination handling bypasses executor for now
-            result = handle_paginated_call(
-                callable_obj,
-                arguments,
-                pagination_info,
-                self.config.max_pagination_items
-            )
-            exec_result = {"success": True, "result": result, "cached": False}
+            # choose pagination strategy
+            if self.config.collect_all_pages:
+                result = collect_all_pages(
+                    callable_obj,
+                    arguments,
+                    pagination_info,
+                    self.config.max_pagination_items
+                )
+            else:
+                result = handle_paginated_call(
+                    callable_obj,
+                    arguments,
+                    pagination_info,
+                    self.config.max_pagination_items
+                )
+            duration_ms = (time.time() - start_time) * 1000
+            exec_result = {"success": True, "result": result, "cached": False, "duration_ms": duration_ms}
         else:
             exec_result = self.executor.execute(
                 tool_name,
@@ -205,7 +244,7 @@ class MCPServer:
                     "jsonrpc": "2.0",
                     "result": {
                         "name": "python-sdk-mcp-converter",
-                        "version": "0.9.0",
+                        "version": "1.0.0",
                         "tools_count": len(self.tools),
                         "sdks": list(set(t["metadata"]["sdk"] for t in self.tools)),
                         "features": {
