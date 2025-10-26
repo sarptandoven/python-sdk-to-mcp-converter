@@ -1,41 +1,54 @@
 # python sdk to mcp converter
 
-early prototype for converting python sdks into mcp servers.
+converts python sdks into mcp servers automatically. discovers methods via reflection and exposes them through the mcp protocol.
 
-## what it does
+## features
 
-takes any python module and exposes its methods as mcp tools. the server uses reflection to discover methods and generates json schemas automatically.
-
-## current status
-
-basic working prototype. can discover methods from python modules and serve them via mcp protocol over stdio.
-
-## how to run
-
-```bash
-python server.py
-```
-
-then send mcp requests via stdin:
-
-```json
-{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
-```
-
-## what works
-
-- discovers functions and class methods from modules
-- generates basic json schemas from type hints
-- handles tools/list and tools/call
+- automatic method discovery from python modules
+- json schema generation from type hints
+- basic authentication support (kubernetes, github, azure)
+- safety filtering for dangerous operations
+- pagination detection
+- secret redaction in responses
 - stdio transport
 
-## todo
+## usage
 
-- add authentication support
-- handle pagination
-- better error handling
-- add tests
-- support more sdks
+```bash
+# basic usage
+python server.py
+
+# load specific sdks
+SDKS=kubernetes,github python server.py
+
+# allow dangerous operations (use carefully)
+ALLOW_DANGEROUS=true python server.py
+```
+
+## authentication
+
+set environment variables for sdk authentication:
+
+```bash
+export GITHUB_TOKEN=your_token
+export KUBECONFIG=/path/to/config
+# etc
+```
+
+the server will try to inject auth automatically based on the sdk being used.
+
+## safety
+
+by default, dangerous operations like delete, update, create are blocked. set `ALLOW_DANGEROUS=true` to enable them.
+
+secrets in responses are automatically redacted.
+
+## testing
+
+```bash
+python test_reflection.py
+python test_safety.py
+```
 
 ## example
 
@@ -43,7 +56,7 @@ then send mcp requests via stdin:
 # start server
 python server.py
 
-# in another terminal, test it
+# send request
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | python server.py
 ```
 
@@ -51,12 +64,31 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | python serve
 
 ```
 server.py          - main server loop
-mcp_protocol.py    - handles mcp json-rpc
-reflection.py      - discovers methods
-schema_gen.py      - generates schemas
+mcp_protocol.py    - mcp json-rpc handling
+reflection.py      - method discovery
+schema_gen.py      - schema generation
+auth.py            - authentication injection
+safety.py          - safety checks and redaction
+pagination.py      - pagination detection
 ```
+
+## current limitations
+
+- auth only works for a few sdks
+- pagination handling is basic
+- error messages could be better
+- no retry logic yet
+- limited test coverage
+
+## todo
+
+- add more auth providers
+- better pagination support
+- add timeout handling
+- retry logic for failures
+- more comprehensive tests
+- better documentation
 
 ## notes
 
-this is an early version. many features still needed but the core concept works.
-
+work in progress. core functionality is there but needs polish.
