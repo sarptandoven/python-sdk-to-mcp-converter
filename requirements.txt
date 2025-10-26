@@ -1,0 +1,17 @@
+# core mcp server
+# no external dependencies required for basic operation
+
+# optional sdk support
+kubernetes>=29.0.0
+PyGithub>=2.3.0
+azure-identity>=1.16.0
+azure-mgmt-resource>=23.0.0
+
+# optional llm enhancement
+openai>=1.14.3
+
+# optional extras
+# boto3>=1.34.0
+# stripe>=7.8.0
+# twilio>=8.11.1
+
