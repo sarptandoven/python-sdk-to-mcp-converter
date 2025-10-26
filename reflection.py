@@ -1,7 +1,7 @@
 """discover methods from python modules."""
 import inspect
 from safety import is_dangerous
-from pagination import has_pagination
+from pagination import detect_pagination
 
 
 def discover_methods(module, module_name, allow_dangerous=False):
@@ -57,11 +57,13 @@ def _create_method_info(name, obj, sig, allow_dangerous):
     if dangerous and not allow_dangerous:
         return None
     
+    pagination_info = detect_pagination(sig)
+    
     return {
         "name": name,
         "callable": obj,
         "signature": sig,
         "docstring": inspect.getdoc(obj),
         "is_dangerous": dangerous,
-        "has_pagination": has_pagination(sig)
+        "has_pagination": pagination_info["has_pagination"]
     }
