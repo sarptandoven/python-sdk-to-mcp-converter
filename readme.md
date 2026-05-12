@@ -51,7 +51,7 @@ MAX_RETRIES=3                # retry failed calls
 sdk credentials in `demo_agent/.env`:
 
 ```bash
-OPENAI_API_KEY=sk-...        # required for demo ui
+OPENAI_API_KEY=<OPENAI_API_KEY>        # required for demo ui
 GITHUB_TOKEN=ghp_...         # optional
 AZURE_TENANT_ID=...          # optional
 AWS_ACCESS_KEY_ID=...        # optional
